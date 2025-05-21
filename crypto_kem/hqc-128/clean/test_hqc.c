@@ -53,206 +53,217 @@ typedef struct {
     uint8_t pkk[PUBLIC_KEY_BYTES];
 } HQCTestContext;
 
+unsigned char pk[PUBLIC_KEY_BYTES];
+unsigned char sk[SECRET_KEY_BYTES];
+unsigned char ct[CIPHERTEXT_BYTES];
+
+unsigned char key1[SHARED_SECRET_BYTES];
+unsigned char key2[SHARED_SECRET_BYTES];
+
+uint8_t sk_seed[SEED_BYTES] = {0};
+uint8_t sigma[VEC_K_SIZE_BYTES] = {0};
+uint8_t pk_seed[SEED_BYTES] = {0};
+
+uint64_t x[VEC_N_SIZE_64] = {0};
+uint64_t y[VEC_N_SIZE_64] = {0};
+uint64_t h[VEC_N_SIZE_64] = {0};
+uint64_t s[VEC_N_SIZE_64] = {0};
+
+uint8_t theta[SHAKE256_512_BYTES] = {0};
+
+uint64_t u[VEC_N_SIZE_64] = {0};
+uint64_t v[VEC_N1N2_SIZE_64] = {0};
+
+uint64_t r1[VEC_N_SIZE_64] = {0};
+uint64_t r2[VEC_N_SIZE_64] = {0};
+uint64_t e[VEC_N_SIZE_64] = {0};
+
+uint8_t mc[VEC_K_SIZE_BYTES + VEC_N_SIZE_BYTES + VEC_N1N2_SIZE_BYTES] = {0};
+uint8_t tmp[VEC_K_SIZE_BYTES + PUBLIC_KEY_BYTES + SALT_SIZE_BYTES] = {0};
+uint8_t *m = tmp;
+uint8_t *salt = tmp + VEC_K_SIZE_BYTES + PUBLIC_KEY_BYTES;
+
+uint64_t tmp1[VEC_N_SIZE_64] = {0};
+uint64_t tmp2[VEC_N_SIZE_64] = {0};
+
+uint8_t result = 0;
+uint64_t u2[VEC_N_SIZE_64] = {0};
+uint64_t v2[VEC_N1N2_SIZE_64] = {0};
+uint8_t *mm = tmp;
+	
+uint8_t pkk[PUBLIC_KEY_BYTES] = {0};
+
+
 /* ======== Key Generation ======== */
-void keygen_generate_seeds(HQCTestContext *ctx);
-NOINLINE void keygen_generate_seeds(HQCTestContext *ctx) {
-    randombytes(ctx->sk_seed, SEED_BYTES);
-    randombytes(ctx->sigma, VEC_K_SIZE_BYTES);
-    randombytes(ctx->pk_seed, SEED_BYTES);
+static NOINLINE void keygen_generate_seeds() {
+    randombytes(sk_seed, SEED_BYTES);
+    randombytes(sigma, VEC_K_SIZE_BYTES);
+    randombytes(pk_seed, SEED_BYTES);
 }
 
-void keygen_generate_x_y(HQCTestContext *ctx);
-NOINLINE void keygen_generate_x_y(HQCTestContext *ctx) {
-    seedexpander_state exp;
-    PQCLEAN_HQC128_CLEAN_seedexpander_init(&exp, ctx->sk_seed, SEED_BYTES);
-    PQCLEAN_HQC128_CLEAN_vect_set_random_fixed_weight(&exp, ctx->x, PARAM_OMEGA);
-    PQCLEAN_HQC128_CLEAN_vect_set_random_fixed_weight(&exp, ctx->y, PARAM_OMEGA);
-    PQCLEAN_HQC128_CLEAN_seedexpander_release(&exp);
+static NOINLINE void keygen_generate_x_y() {
+    seedexpander_state sk_seedexpander;
+	
+    PQCLEAN_HQC128_CLEAN_seedexpander_init(&sk_seedexpander, sk_seed, SEED_BYTES);
+    PQCLEAN_HQC128_CLEAN_vect_set_random_fixed_weight(&sk_seedexpander, x, PARAM_OMEGA);
+    PQCLEAN_HQC128_CLEAN_vect_set_random_fixed_weight(&sk_seedexpander, y, PARAM_OMEGA);
+	
+    PQCLEAN_HQC128_CLEAN_seedexpander_release(&sk_seedexpander);
 }
 
-void keygen_generate_h(HQCTestContext *ctx);
-NOINLINE void keygen_generate_h(HQCTestContext *ctx) {
-    seedexpander_state exp;
-    PQCLEAN_HQC128_CLEAN_seedexpander_init(&exp, ctx->pk_seed, SEED_BYTES);
-    PQCLEAN_HQC128_CLEAN_vect_set_random(&exp, ctx->h);
-    PQCLEAN_HQC128_CLEAN_seedexpander_release(&exp);
+static NOINLINE void keygen_generate_h() {
+    seedexpander_state pk_seedexpander;
+	
+    PQCLEAN_HQC128_CLEAN_seedexpander_init(&pk_seedexpander, pk_seed, SEED_BYTES);
+    PQCLEAN_HQC128_CLEAN_vect_set_random(&pk_seedexpander, h);
+	
+    PQCLEAN_HQC128_CLEAN_seedexpander_release(&pk_seedexpander);
 }
 
-void keygen_compute_s(HQCTestContext *ctx);
-NOINLINE void keygen_compute_s(HQCTestContext *ctx) {
-    PQCLEAN_HQC128_CLEAN_vect_mul(ctx->s, ctx->y, ctx->h);
-    PQCLEAN_HQC128_CLEAN_vect_add(ctx->s, ctx->x, ctx->s, VEC_N_SIZE_64);
+static NOINLINE void keygen_compute_s() {
+    PQCLEAN_HQC128_CLEAN_vect_mul(s, y, h);
+    PQCLEAN_HQC128_CLEAN_vect_add(s, x, s, VEC_N_SIZE_64);
 }
 
-void keygen_pack_keys(HQCTestContext *ctx);
-NOINLINE void keygen_pack_keys(HQCTestContext *ctx) {
-    PQCLEAN_HQC128_CLEAN_hqc_public_key_to_string(ctx->pk, ctx->pk_seed, ctx->s);
-    PQCLEAN_HQC128_CLEAN_hqc_secret_key_to_string(ctx->sk, ctx->sk_seed, ctx->sigma, ctx->pk);
+static NOINLINE void keygen_pack_keys() {
+    PQCLEAN_HQC128_CLEAN_hqc_public_key_to_string(pk, pk_seed, s);
+    PQCLEAN_HQC128_CLEAN_hqc_secret_key_to_string(sk, sk_seed, sigma, pk);
 }
 
 /* ======== Encryption ======== */
 
-void enc_generate_m_and_salt(HQCTestContext *ctx);
-NOINLINE void enc_generate_m_and_salt(HQCTestContext *ctx) {
-    randombytes(ctx->m, VEC_K_SIZE_BYTES);
-    randombytes(ctx->salt, SALT_SIZE_BYTES);
+static NOINLINE void enc_generate_m_and_salt() {
+    randombytes(m, VEC_K_SIZE_BYTES);
+    randombytes(salt, SALT_SIZE_BYTES);
 }
 
-void enc_compute_theta(HQCTestContext *ctx);
-NOINLINE void enc_compute_theta(HQCTestContext *ctx) {
-    uint8_t input[VEC_K_SIZE_BYTES + PUBLIC_KEY_BYTES + SALT_SIZE_BYTES];
-
-    // Prepare input = m || pk || salt
-    memcpy(input, ctx->m, VEC_K_SIZE_BYTES);
-    memcpy(input + VEC_K_SIZE_BYTES, ctx->pk, PUBLIC_KEY_BYTES);
-    memcpy(input + VEC_K_SIZE_BYTES + PUBLIC_KEY_BYTES, ctx->salt, SALT_SIZE_BYTES);
-
-    // Compute SHAKE256-based theta using domain-separated variant
-    PQCLEAN_HQC128_CLEAN_shake256_512_ds(&shake256state, ctx->theta, input, sizeof(input), G_FCT_DOMAIN);
+static NOINLINE void enc_compute_theta() {
+    memcpy(tmp + VEC_K_SIZE_BYTES, pk, PUBLIC_KEY_BYTES);
+	
+    PQCLEAN_HQC128_CLEAN_shake256_512_ds(&shake256state, theta, tmp, VEC_K_SIZE_BYTES + PUBLIC_KEY_BYTES + SALT_SIZE_BYTES, G_FCT_DOMAIN);
 }
 
-void enc_generate_r1_r2_e(HQCTestContext *ctx);
-NOINLINE void enc_generate_r1_r2_e(HQCTestContext *ctx) {
-    seedexpander_state exp;
-    PQCLEAN_HQC128_CLEAN_seedexpander_init(&exp, ctx->theta, SEED_BYTES);
-    PQCLEAN_HQC128_CLEAN_vect_set_random_fixed_weight(&exp, ctx->r1, PARAM_OMEGA_R);
-    PQCLEAN_HQC128_CLEAN_vect_set_random_fixed_weight(&exp, ctx->r2, PARAM_OMEGA_R);
-    PQCLEAN_HQC128_CLEAN_vect_set_random_fixed_weight(&exp, ctx->e, PARAM_OMEGA_E);
-    PQCLEAN_HQC128_CLEAN_seedexpander_release(&exp);
+static NOINLINE void enc_generate_r1_r2_e() {
+    seedexpander_state vec_seedexpander;
+	
+    PQCLEAN_HQC128_CLEAN_seedexpander_init(&vec_seedexpander, theta, SEED_BYTES);
+	
+    PQCLEAN_HQC128_CLEAN_vect_set_random_fixed_weight(&vec_seedexpander, r1, PARAM_OMEGA_R);
+	PQCLEAN_HQC128_CLEAN_vect_set_random_fixed_weight(&vec_seedexpander, r2, PARAM_OMEGA_R);
+	PQCLEAN_HQC128_CLEAN_vect_set_random_fixed_weight(&vec_seedexpander, e, PARAM_OMEGA_E);
+	
+    PQCLEAN_HQC128_CLEAN_seedexpander_release(&vec_seedexpander);
 }
 
-void enc_compute_u(HQCTestContext *ctx);
-NOINLINE void enc_compute_u(HQCTestContext *ctx) {
-    PQCLEAN_HQC128_CLEAN_hqc_public_key_from_string(ctx->h, ctx->s, ctx->pk);
-    PQCLEAN_HQC128_CLEAN_vect_mul(ctx->u, ctx->r2, ctx->h);
-    PQCLEAN_HQC128_CLEAN_vect_add(ctx->u, ctx->r1, ctx->u, VEC_N_SIZE_64);
+static NOINLINE void enc_compute_u() {
+    PQCLEAN_HQC128_CLEAN_hqc_public_key_from_string(h, s, pk);
+	
+    PQCLEAN_HQC128_CLEAN_vect_mul(u, r2, h);
+	PQCLEAN_HQC128_CLEAN_vect_add(u, r1, u, VEC_N_SIZE_64);
 }
 
-void enc_compute_v(HQCTestContext *ctx);
-NOINLINE void enc_compute_v(HQCTestContext *ctx) {
-    PQCLEAN_HQC128_CLEAN_code_encode(ctx->v, ctx->m);
-    PQCLEAN_HQC128_CLEAN_vect_resize((uint64_t *)ctx->tmp1, PARAM_N, ctx->v, PARAM_N1N2);
-    PQCLEAN_HQC128_CLEAN_vect_mul((uint64_t *)ctx->tmp2, ctx->r2, ctx->s);
-    PQCLEAN_HQC128_CLEAN_vect_add((uint64_t *)ctx->tmp2, ctx->e, (uint64_t *)ctx->tmp2, VEC_N_SIZE_64);
-    PQCLEAN_HQC128_CLEAN_vect_add((uint64_t *)ctx->tmp2, (uint64_t *)ctx->tmp1, (uint64_t *)ctx->tmp2, VEC_N_SIZE_64);
-    PQCLEAN_HQC128_CLEAN_vect_resize(ctx->v, PARAM_N1N2, (uint64_t *)ctx->tmp2, PARAM_N);
+static NOINLINE void enc_compute_v() {
+    PQCLEAN_HQC128_CLEAN_code_encode(v, m);
+	PQCLEAN_HQC128_CLEAN_vect_resize(tmp1, PARAM_N, v, PARAM_N1N2);
+	
+    PQCLEAN_HQC128_CLEAN_vect_mul(tmp2, r2, s);
+	PQCLEAN_HQC128_CLEAN_vect_add(tmp2, e, tmp2, VEC_N_SIZE_64);
+	PQCLEAN_HQC128_CLEAN_vect_add(tmp2, tmp1, tmp2, VEC_N_SIZE_64);
+	PQCLEAN_HQC128_CLEAN_vect_resize(v, PARAM_N1N2, tmp2, PARAM_N);
 }
 
-void enc_pack_ciphertext(HQCTestContext *ctx);
-NOINLINE void enc_pack_ciphertext(HQCTestContext *ctx) {
-    PQCLEAN_HQC128_CLEAN_hqc_ciphertext_to_string(ctx->ct, ctx->u, ctx->v, ctx->salt);
+static NOINLINE void enc_compute_shared_secret() {
+    memcpy(mc, m, VEC_K_SIZE_BYTES);
+    PQCLEAN_HQC128_CLEAN_store8_arr(mc + VEC_K_SIZE_BYTES, VEC_N_SIZE_BYTES, u, VEC_N_SIZE_64);
+    PQCLEAN_HQC128_CLEAN_store8_arr(mc + VEC_K_SIZE_BYTES + VEC_N_SIZE_BYTES, VEC_N1N2_SIZE_BYTES, v, VEC_N1N2_SIZE_64);
+    PQCLEAN_HQC128_CLEAN_shake256_512_ds(&shake256state, key1, mc, VEC_K_SIZE_BYTES + VEC_N_SIZE_BYTES + VEC_N1N2_SIZE_BYTES, K_FCT_DOMAIN);
 }
 
-void enc_compute_shared_secret(HQCTestContext *ctx);
-NOINLINE void enc_compute_shared_secret(HQCTestContext *ctx) {
-    memcpy(ctx->mc, ctx->m, VEC_K_SIZE_BYTES);
-    PQCLEAN_HQC128_CLEAN_store8_arr(ctx->mc + VEC_K_SIZE_BYTES, VEC_N_SIZE_BYTES, ctx->u, VEC_N_SIZE_64);
-    PQCLEAN_HQC128_CLEAN_store8_arr(ctx->mc + VEC_K_SIZE_BYTES + VEC_N_SIZE_BYTES, VEC_N1N2_SIZE_BYTES, ctx->v, VEC_N1N2_SIZE_64);
-    PQCLEAN_HQC128_CLEAN_shake256_512_ds(&shake256state, ctx->key1, ctx->mc, sizeof(ctx->mc), K_FCT_DOMAIN);
+static NOINLINE void enc_pack_ciphertext() {
+    PQCLEAN_HQC128_CLEAN_hqc_ciphertext_to_string(ct, u, v, salt);
 }
 
 /* ======== Decryption ======== */
 
-void dec_unpack_ciphertext(HQCTestContext *ctx);
-NOINLINE void dec_unpack_ciphertext(HQCTestContext *ctx) {
-    PQCLEAN_HQC128_CLEAN_hqc_ciphertext_from_string(ctx->u, ctx->v, ctx->salt, ctx->ct);
+static NOINLINE void dec_unpack_ciphertext() {
+    PQCLEAN_HQC128_CLEAN_hqc_ciphertext_from_string(u, v, salt, ct);
 }
 
-void dec_unpack_secret_key(HQCTestContext *ctx);
-NOINLINE void dec_unpack_secret_key(HQCTestContext *ctx) {
-    PQCLEAN_HQC128_CLEAN_hqc_secret_key_from_string(ctx->x, ctx->y, ctx->sigma, ctx->pkk, ctx->sk);
+static NOINLINE void dec_unpack_secret_key() {
+    PQCLEAN_HQC128_CLEAN_hqc_secret_key_from_string(x, y, sigma, pkk, sk);
 }
 
-void dec_compute_tmp2_for_decoding(HQCTestContext *ctx, uint64_t *tmp2);
-NOINLINE void dec_compute_tmp2_for_decoding(HQCTestContext *ctx, uint64_t *tmp2) {
-    PQCLEAN_HQC128_CLEAN_vect_resize((uint64_t *)ctx->tmp1, PARAM_N, ctx->v, PARAM_N1N2);
-    PQCLEAN_HQC128_CLEAN_vect_mul(tmp2, ctx->y, ctx->u);
-    PQCLEAN_HQC128_CLEAN_vect_add(tmp2, (uint64_t *)ctx->tmp1, tmp2, VEC_N_SIZE_64);
+static NOINLINE void dec_compute_tmp2_for_decoding() {
+    PQCLEAN_HQC128_CLEAN_vect_resize(tmp1, PARAM_N, v, PARAM_N1N2);
+	PQCLEAN_HQC128_CLEAN_vect_mul(tmp2, y, u);
+	PQCLEAN_HQC128_CLEAN_vect_add(tmp2, tmp1, tmp2, VEC_N_SIZE_64);
 }
 
-void dec_decode_message(HQCTestContext *ctx, const uint64_t *tmp2);
-NOINLINE void dec_decode_message(HQCTestContext *ctx, const uint64_t *tmp2) {
-    PQCLEAN_HQC128_CLEAN_code_decode(ctx->m, tmp2);
+static NOINLINE void dec_decode_message() {
+    PQCLEAN_HQC128_CLEAN_code_decode(mm, tmp2);
 }
 
-void dec_rederive_theta(HQCTestContext *ctx);
-NOINLINE void dec_rederive_theta(HQCTestContext *ctx) {
-    uint8_t input[VEC_K_SIZE_BYTES + PUBLIC_KEY_BYTES + SALT_SIZE_BYTES];
-    memcpy(input, ctx->m, VEC_K_SIZE_BYTES);
-    memcpy(input + VEC_K_SIZE_BYTES, ctx->pkk, PUBLIC_KEY_BYTES);
-    memcpy(input + VEC_K_SIZE_BYTES + PUBLIC_KEY_BYTES, ctx->salt, SALT_SIZE_BYTES);
-    PQCLEAN_HQC128_CLEAN_shake256_512_ds(&shake256state, ctx->theta, input, sizeof(input), G_FCT_DOMAIN);
+static NOINLINE void dec_rederive_theta() {
+    memcpy(tmp + VEC_K_SIZE_BYTES, pkk, PUBLIC_KEY_BYTES);
+    PQCLEAN_HQC128_CLEAN_shake256_512_ds(&shake256state, theta, tmp, VEC_K_SIZE_BYTES + PUBLIC_KEY_BYTES + SALT_SIZE_BYTES, G_FCT_DOMAIN);
 }
 
-void dec_reencrypt(HQCTestContext *ctx, uint64_t *u2, uint64_t *v2);
-NOINLINE void dec_reencrypt(HQCTestContext *ctx, uint64_t *u2, uint64_t *v2) {
-    PQCLEAN_HQC128_CLEAN_hqc_pke_encrypt(u2, v2, ctx->m, ctx->theta, ctx->pkk);
+static NOINLINE void dec_reencrypt() {
+    PQCLEAN_HQC128_CLEAN_hqc_pke_encrypt(u2, v2, mm, theta, pkk);
 }
 
-uint8_t dec_constant_time_check(HQCTestContext *ctx, const uint64_t *u2, const uint64_t *v2);
-NOINLINE uint8_t dec_constant_time_check(HQCTestContext *ctx, const uint64_t *u2, const uint64_t *v2) {
-    uint8_t result = 0;
-    result |= PQCLEAN_HQC128_CLEAN_vect_compare((uint8_t *)ctx->u, (uint8_t *)u2, VEC_N_SIZE_BYTES);
-    result |= PQCLEAN_HQC128_CLEAN_vect_compare((uint8_t *)ctx->v, (uint8_t *)v2, VEC_N1N2_SIZE_BYTES);
-    return result - 1; // Map 0 -> 0xFF (success), nonzero -> 0x00 (failure)
+static NOINLINE void dec_constant_time_check() {
+    result |= PQCLEAN_HQC128_CLEAN_vect_compare((uint8_t *)u, (uint8_t *)u2, VEC_N_SIZE_BYTES);
+    result |= PQCLEAN_HQC128_CLEAN_vect_compare((uint8_t *)v, (uint8_t *)v2, VEC_N1N2_SIZE_BYTES);
+
+    result -= 1;
 }
 
-void dec_select_message(HQCTestContext *ctx, uint8_t result);
-NOINLINE void dec_select_message(HQCTestContext *ctx, uint8_t result) {
+static NOINLINE void dec_select_message() {
     for (size_t i = 0; i < VEC_K_SIZE_BYTES; ++i) {
-        ctx->mc[i] = (ctx->m[i] & result) ^ (ctx->sigma[i] & ~result);
+        mc[i] = (mm[i] & result) ^ (sigma[i] & ~result);
     }
+
 }
 
-void dec_finalize_shared_secret(HQCTestContext *ctx);
-NOINLINE void dec_finalize_shared_secret(HQCTestContext *ctx) {
-    PQCLEAN_HQC128_CLEAN_store8_arr(ctx->mc + VEC_K_SIZE_BYTES, VEC_N_SIZE_BYTES, ctx->u, VEC_N_SIZE_64);
-    PQCLEAN_HQC128_CLEAN_store8_arr(ctx->mc + VEC_K_SIZE_BYTES + VEC_N_SIZE_BYTES, VEC_N1N2_SIZE_BYTES, ctx->v, VEC_N1N2_SIZE_64);
-    PQCLEAN_HQC128_CLEAN_shake256_512_ds(&shake256state, ctx->key2, ctx->mc, sizeof(ctx->mc), K_FCT_DOMAIN);
-}
-
-void dec_decrypt_and_check(HQCTestContext *ctx);
-NOINLINE void dec_decrypt_and_check(HQCTestContext *ctx) {
-    uint64_t tmp2[VEC_N_SIZE_64] = {0};
-    uint64_t u2[VEC_N_SIZE_64] = {0};
-    uint64_t v2[VEC_N1N2_SIZE_64] = {0};
-
-    dec_unpack_ciphertext(ctx);
-    dec_unpack_secret_key(ctx);
-    dec_compute_tmp2_for_decoding(ctx, tmp2);
-    dec_decode_message(ctx, tmp2);
-    dec_rederive_theta(ctx);
-    dec_reencrypt(ctx, u2, v2);
-
-    uint8_t valid = dec_constant_time_check(ctx, u2, v2);
-    dec_select_message(ctx, valid);
-    dec_finalize_shared_secret(ctx);
+static NOINLINE void dec_finalize_shared_secret() {
+    PQCLEAN_HQC128_CLEAN_store8_arr(mc + VEC_K_SIZE_BYTES, VEC_N_SIZE_BYTES, u, VEC_N_SIZE_64);
+    PQCLEAN_HQC128_CLEAN_store8_arr(mc + VEC_K_SIZE_BYTES + VEC_N_SIZE_BYTES, VEC_N1N2_SIZE_BYTES, v, VEC_N1N2_SIZE_64);
+    PQCLEAN_HQC128_CLEAN_shake256_512_ds(&shake256state, key2, mc, VEC_K_SIZE_BYTES + VEC_N_SIZE_BYTES + VEC_N1N2_SIZE_BYTES, K_FCT_DOMAIN);
 }
 
 
 /* ======== Main ======== */
 
 int main() {
-    HQCTestContext ctx = {0};
+    //HQCTestContext ctx = {0};
 
     // Key Generation
-    keygen_generate_seeds(&ctx);
-    keygen_generate_x_y(&ctx);
-    keygen_generate_h(&ctx);
-    keygen_compute_s(&ctx);
-    keygen_pack_keys(&ctx);
+    keygen_generate_seeds();
+    keygen_generate_x_y();
+    keygen_generate_h();
+    keygen_compute_s();
+    keygen_pack_keys();
 
     // Encryption
-    enc_generate_m_and_salt(&ctx);
-    enc_compute_theta(&ctx);
-    enc_generate_r1_r2_e(&ctx);
-    enc_compute_u(&ctx);
-    enc_compute_v(&ctx);
-    enc_pack_ciphertext(&ctx);
-    enc_compute_shared_secret(&ctx);
+    enc_generate_m_and_salt();
+    enc_compute_theta();
+    enc_generate_r1_r2_e();
+    enc_compute_u();
+    enc_compute_v();
+	enc_compute_shared_secret();
+    enc_pack_ciphertext();
 
     // Decryption
-    dec_decrypt_and_check(&ctx);
+	dec_unpack_ciphertext();
+	dec_unpack_secret_key();
+	dec_compute_tmp2_for_decoding();
+	dec_decode_message();
+	dec_rederive_theta();
+	dec_reencrypt();
+	dec_constant_time_check();
+	dec_select_message();
+	dec_finalize_shared_secret();
 
     return 0;
 }

@@ -1,0 +1,2 @@
+reed_solomon.c:23:6:PQCLEAN_HQC128_CLEAN_reed_solomon_encode	224	static
+reed_solomon.c:305:6:PQCLEAN_HQC128_CLEAN_reed_solomon_decode	1232	static

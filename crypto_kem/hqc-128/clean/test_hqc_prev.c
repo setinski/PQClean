@@ -20,6 +20,7 @@ int main() {
 	unsigned char pk[PUBLIC_KEY_BYTES];
 	unsigned char sk[SECRET_KEY_BYTES];
 	unsigned char ct[CIPHERTEXT_BYTES];
+	
 	unsigned char key1[SHARED_SECRET_BYTES];
 	unsigned char key2[SHARED_SECRET_BYTES];
 	//printf("%d\n", PUBLIC_KEY_BYTES);
@@ -30,6 +31,7 @@ int main() {
 	uint8_t sk_seed[SEED_BYTES] = {0};
     uint8_t sigma[VEC_K_SIZE_BYTES] = {0};
     uint8_t pk_seed[SEED_BYTES] = {0};
+	
     uint64_t x[VEC_N_SIZE_64] = {0};
     uint64_t y[VEC_N_SIZE_64] = {0};
     uint64_t h[VEC_N_SIZE_64] = {0};
