@@ -19,40 +19,6 @@
 
 shake256incctx shake256state;
 
-typedef struct {
-    uint8_t sk_seed[SEED_BYTES];
-    uint8_t sigma[VEC_K_SIZE_BYTES];
-    uint8_t pk_seed[SEED_BYTES];
-
-    uint64_t x[VEC_N_SIZE_64];
-    uint64_t y[VEC_N_SIZE_64];
-    uint64_t h[VEC_N_SIZE_64];
-    uint64_t s[VEC_N_SIZE_64];
-
-    uint8_t pk[PUBLIC_KEY_BYTES];
-    uint8_t sk[SECRET_KEY_BYTES];
-
-    uint8_t m[VEC_K_SIZE_BYTES];
-    uint8_t salt[SALT_SIZE_BYTES];
-    uint8_t theta[SHAKE256_512_BYTES];
-
-    uint64_t r1[VEC_N_SIZE_64];
-    uint64_t r2[VEC_N_SIZE_64];
-    uint64_t e[VEC_N_SIZE_64];
-
-    uint64_t u[VEC_N_SIZE_64];
-    uint64_t v[VEC_N1N2_SIZE_64];
-
-    uint8_t ct[CIPHERTEXT_BYTES];
-    uint8_t key1[SHARED_SECRET_BYTES];
-    uint8_t key2[SHARED_SECRET_BYTES];
-
-    uint8_t mc[VEC_K_SIZE_BYTES + VEC_N_SIZE_BYTES + VEC_N1N2_SIZE_BYTES];
-    uint8_t tmp1[VEC_N_SIZE_BYTES];
-    uint8_t tmp2[VEC_N_SIZE_BYTES];
-    uint8_t pkk[PUBLIC_KEY_BYTES];
-} HQCTestContext;
-
 unsigned char pk[PUBLIC_KEY_BYTES];
 unsigned char sk[SECRET_KEY_BYTES];
 unsigned char ct[CIPHERTEXT_BYTES];
@@ -265,6 +231,11 @@ int main() {
 	dec_select_message();
 	dec_finalize_shared_secret();
 
-    return 0;
+	if((result & 1) - 1 == 0)
+		printf("\nTest passed successfully.\n");
+	else
+		printf("\nTest failed.\n");
+	
+    return (result & 1) - 1;
 }
 
