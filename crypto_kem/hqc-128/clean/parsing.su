@@ -1,8 +1,0 @@
-parsing.c:23:6:PQCLEAN_HQC128_CLEAN_load8_arr	16	static
-parsing.c:48:6:PQCLEAN_HQC128_CLEAN_store8_arr	8	static
-parsing.c:69:6:PQCLEAN_HQC128_CLEAN_hqc_secret_key_to_string	8	static
-parsing.c:88:6:PQCLEAN_HQC128_CLEAN_hqc_secret_key_from_string	64	static
-parsing.c:112:6:PQCLEAN_HQC128_CLEAN_hqc_public_key_to_string	8	static
-parsing.c:128:6:PQCLEAN_HQC128_CLEAN_hqc_public_key_from_string	64	static
-parsing.c:151:6:PQCLEAN_HQC128_CLEAN_hqc_ciphertext_to_string	32	static
-parsing.c:169:6:PQCLEAN_HQC128_CLEAN_hqc_ciphertext_from_string	32	static

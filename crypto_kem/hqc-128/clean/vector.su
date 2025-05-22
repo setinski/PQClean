@@ -1,5 +1,0 @@
-vector.c:67:6:PQCLEAN_HQC128_CLEAN_vect_set_random_fixed_weight	1568	static
-vector.c:125:6:PQCLEAN_HQC128_CLEAN_vect_set_random	2256	static
-vector.c:144:6:PQCLEAN_HQC128_CLEAN_vect_add	8	static
-vector.c:160:9:PQCLEAN_HQC128_CLEAN_vect_compare	8	static
-vector.c:180:6:PQCLEAN_HQC128_CLEAN_vect_resize	8	static

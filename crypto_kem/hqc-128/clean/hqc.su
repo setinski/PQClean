@@ -1,3 +1,0 @@
-hqc.c:28:6:PQCLEAN_HQC128_CLEAN_hqc_pke_keygen	9104	static
-hqc.c:77:6:PQCLEAN_HQC128_CLEAN_hqc_pke_encrypt	15616	static
-hqc.c:126:9:PQCLEAN_HQC128_CLEAN_hqc_pke_decrypt	11200	static

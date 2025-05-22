@@ -1,3 +1,0 @@
-kem.c:31:5:PQCLEAN_HQC128_CLEAN_crypto_kem_keypair	16	static
-kem.c:47:5:PQCLEAN_HQC128_CLEAN_crypto_kem_enc	11328	static
-kem.c:92:5:PQCLEAN_HQC128_CLEAN_crypto_kem_dec	15760	static

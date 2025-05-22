@@ -1,4 +1,0 @@
-gf.c:35:17:gf_reduce.constprop	40	static
-gf.c:121:10:PQCLEAN_HQC128_CLEAN_gf_mul	64	static
-gf.c:135:10:PQCLEAN_HQC128_CLEAN_gf_square	8	static
-gf.c:154:10:PQCLEAN_HQC128_CLEAN_gf_inverse	32	static

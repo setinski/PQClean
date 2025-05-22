@@ -1,6 +1,0 @@
-fft.c:25:13:compute_fft_betas	8	static
-fft.c:44:13:compute_subset_sums	8	static
-fft.c:69:13:radix	176	static
-fft.c:165:13:fft_rec	576	static
-fft.c:267:6:PQCLEAN_HQC128_CLEAN_fft	960	static
-fft.c:326:6:PQCLEAN_HQC128_CLEAN_fft_retrieve_error_poly	320	static
