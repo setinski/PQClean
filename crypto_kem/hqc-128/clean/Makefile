@@ -32,26 +32,9 @@ massif: test_hqc
 	ms_print massif.out.* > massif-report.txt
 	@echo "Massif report saved to massif-report.txt"
 
-# Show full stack usage for all functions (top 10)
-stack-usage-top:
-	@echo -e "Function                  Stack (bytes)   File"
-	@cat *.su | \
-	awk -F: '{ printf "%-26s %-16s %s\n", $$1, $$2, $$3 }' | \
-	sort -k2 -n -r | head -n 10
-
-# Show full stack usage for all functions
-stack-usage:
-	@echo -e "Function                  Stack (bytes)   File"
-	@cat *.su | \
-	awk -F: '{ printf "%-26s %-16s %s\n", $$1, $$2, $$3 }' | \
-	sort -k2 -n -r
-
 # Show only stack usage of functions in test_hqc.c, sorted by line number
 stack-test_hqc:
-	@echo -e "Function                    Stack (bytes)   Location"
-	@grep 'test_hqc.c' *.su | \
-	awk -F: '{ printf "%-30s %-5s %s:%s\n", $$5, $$6, $$2, $$3 }' | \
-	sort -t ':' -k2n
+	@cat test_hqc.su
 
 
 # Clean build files and reports
