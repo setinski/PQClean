@@ -5,7 +5,7 @@ HEADERS = api.h code.h domains.h fips202.h fft.h gf.h gf2x.h hqc.h parameters.h 
 OBJECTS = code.o fips202.o fft.o gf.o gf2x.o hqc.o kem.o parsing.o randombytes.o reed_muller.o reed_solomon.o sha2.o shake_ds.o shake_prng.o vector.o
 
 CFLAGS = -Wall -Wextra -Wpedantic -Wshadow -Wvla -Werror -Wredundant-decls -Wmissing-prototypes -std=c99 -I../../../common $(EXTRAFLAGS)
-DEBUG_FLAGS = -ggdb -Os -fstack-usage
+DEBUG_FLAGS = -ggdb -O2 -fstack-usage -fno-inline -fno-omit-frame-pointer
 LDFLAGS = -L. -lhqc-128_clean
 
 all: $(LIB) test_hqc
