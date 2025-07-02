@@ -7,43 +7,6 @@
  * @brief Implementation of SHAKE-256 based seed expander
  */
 
-shake256incctx shake_prng_state;
-
-/**
- * @brief SHAKE-256 with incremental API and domain separation
- *
- * Derived from function SHAKE_256 in fips202.cpp
- *
- * @param[in] entropy_input Pointer to input entropy bytes
- * @param[in] personalization_string Pointer to the personalization string
- * @param[in] enlen Length of entropy string in bytes
- * @param[in] perlen Length of the personalization string in bytes
- */
-void shake_prng_init(uint8_t *entropy_input, uint8_t *personalization_string, uint32_t enlen, uint32_t perlen) {
-    uint8_t domain = PRNG_DOMAIN;
-    shake256_inc_init(&shake_prng_state);
-    shake256_inc_absorb(&shake_prng_state, entropy_input, enlen);
-    shake256_inc_absorb(&shake_prng_state, personalization_string, perlen);
-    shake256_inc_absorb(&shake_prng_state, &domain, 1);
-    shake256_inc_finalize(&shake_prng_state);
-}
-
-
-
-/**
- * @brief A SHAKE-256 based PRNG
- *
- * Derived from function SHAKE_256 in fips202.cpp
- *
- * @param[out] output Pointer to output
- * @param[in] outlen length of output in bytes
- */
-void shake_prng(uint8_t *output, uint32_t outlen) {
-    shake256_inc_squeeze(output, outlen, &shake_prng_state);
-}
-
-
-
 
 /**
  * @brief Initialise a SHAKE-256 based seed expander
