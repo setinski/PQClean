@@ -14,10 +14,14 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
+#include <assert.h>
+#include "kat_helpers.h" // common file for KAT mode
 
 #define NOINLINE __attribute__((noinline))
 
 shake256incctx shake256state;
+
 
 typedef struct {
 	uint8_t sk_seed[SEED_BYTES];
@@ -64,7 +68,8 @@ typedef struct {
     uint64_t tmp2[VEC_N_SIZE_64];
 } DecryptContext;
 
-
+#define SEED_LEN 48
+#define NTESTS 100  // Adjust if needed
 
 /* ======== Key Generation ======== */
 static NOINLINE void keygen_generate_seeds(KeygenContext *ctx) {
@@ -198,121 +203,204 @@ static NOINLINE void dec_finalize_shared_secret(DecryptContext *ctx, uint8_t *ss
     PQCLEAN_HQC128_CLEAN_shake256_512_ds(&shake256state, ss, ctx -> mc, VEC_K_SIZE_BYTES + VEC_N_SIZE_BYTES + VEC_N1N2_SIZE_BYTES, K_FCT_DOMAIN);
 }
 
+int verify_kats(const char *kat_rsp_filename) {
+    FILE *fp_rsp = fopen(kat_rsp_filename, "r");
+    if (!fp_rsp) {
+        perror("KAT .rsp file");
+        return 1;
+    }
 
-/* ======== Main ======== */
+    uint8_t seed[SEED_LEN];
+    uint8_t pk[PUBLIC_KEY_BYTES], pk_kat[PUBLIC_KEY_BYTES];
+    uint8_t sk[SECRET_KEY_BYTES], sk_kat[SECRET_KEY_BYTES];
+    uint8_t ct[CIPHERTEXT_BYTES], ct_kat[CIPHERTEXT_BYTES];
+    uint8_t ss[SHARED_SECRET_BYTES], ss_kat[SHARED_SECRET_BYTES];
 
-int main() {
-	
-	// Set message, secret key, public key, shared key and salt
-	uint8_t pk[PUBLIC_KEY_BYTES];
-	uint8_t sk[SECRET_KEY_BYTES];
-	uint8_t ct[CIPHERTEXT_BYTES];
-	
-	uint8_t ss[SHARED_SECRET_BYTES];
-	
-	uint8_t m[VEC_K_SIZE_BYTES], mm[VEC_K_SIZE_BYTES];
-	randombytes(m, VEC_K_SIZE_BYTES);
-	
-	uint8_t salt[SALT_SIZE_BYTES];
+    int count, failures = 0, testno = 0;
+    while (FindMarker(fp_rsp, "count = ")) {
+        fscanf(fp_rsp, "%d", &count);
+
+        if (!ReadHex(fp_rsp, seed, SEED_LEN, "seed = ")) break;
+        if (!ReadHex(fp_rsp, pk_kat, PUBLIC_KEY_BYTES, "pk = ")) break;
+        if (!ReadHex(fp_rsp, sk_kat, SECRET_KEY_BYTES, "sk = ")) break;
+        if (!ReadHex(fp_rsp, ct_kat, CIPHERTEXT_BYTES, "ct = ")) break;
+        if (!ReadHex(fp_rsp, ss_kat, SHARED_SECRET_BYTES, "ss = ")) break;
+
+        // Initialize PRNG with seed (as in your KAT generator)
+        hqc_kat_init(seed, NULL, 256);
+
+        // === Run your custom keygen ===
+        KeygenContext kctx = {0};
+        keygen_generate_seeds(&kctx);
+        keygen_generate_x_y(&kctx);
+        keygen_generate_h(&kctx);
+        keygen_compute_s(&kctx);
+        keygen_pack_keys(&kctx, pk, sk);
+
+        // === Run your custom encryption ===
+        EncryptContext ectx = {0};
+        uint8_t m[VEC_K_SIZE_BYTES];
+        randombytes(m, VEC_K_SIZE_BYTES);
+        enc_compute_theta(&ectx, pk);
+        enc_generate_r1_r2_e(&ectx);
+        enc_compute_u(&ectx, pk);
+        enc_compute_v(&ectx, m);
+        enc_compute_shared_secret(&ectx, ss, m);
+        uint8_t salt[SALT_SIZE_BYTES];
+        randombytes(salt, SALT_SIZE_BYTES);
+        enc_pack_ciphertext(&ectx, ct, salt);
+
+        // === Run your custom decryption ===
+        DecryptContext dctx = {0};
+        uint8_t mm[VEC_K_SIZE_BYTES], ss_dec[SHARED_SECRET_BYTES];
+        dec_unpack_ciphertext(&dctx, salt, ct);
+        dec_unpack_secret_key(&dctx, sk);
+        dec_compute_tmp2_for_decoding(&dctx);
+        dec_decode_message(&dctx, mm);
+        dec_rederive_theta(&dctx);
+        dec_reencrypt(&dctx, mm);
+        dec_constant_time_check(&dctx);
+        dec_select_message(&dctx, mm);
+        dec_finalize_shared_secret(&dctx, ss_dec);
+
+        // === Compare outputs ===
+        int fail = 0;
+        if (memcmp(pk, pk_kat, PUBLIC_KEY_BYTES) != 0) fail = 1;
+        if (memcmp(sk, sk_kat, SECRET_KEY_BYTES) != 0) fail = 1;
+        if (memcmp(ct, ct_kat, CIPHERTEXT_BYTES) != 0) fail = 1;
+        if (memcmp(ss, ss_kat, SHARED_SECRET_BYTES) != 0) fail = 1;
+        if (memcmp(ss_dec, ss_kat, SHARED_SECRET_BYTES) != 0) fail = 1;
+
+        printf("KAT test %d: %s\n", testno, fail ? "FAIL" : "PASS");
+        if (fail) failures++;
+
+        hqc_kat_release();
+        testno++;
+    }
+
+    fclose(fp_rsp);
+    if (failures == 0) {
+        printf("All KATs passed!\n");
+        return 0;
+    } else {
+        printf("%d KATs failed.\n", failures);
+        return 1;
+    }
+}
+
+int main(int argc, char **argv) {
+    // === KAT verification mode ===
+    if (argc > 1 && strcmp(argv[1], "kat") == 0) {
+        return verify_kats("PQCkemKAT_2305.rsp");
+    }
+
+    // === Standard test mode ===
+
+    // Set message, secret key, public key, shared key and salt
+    uint8_t pk[PUBLIC_KEY_BYTES];
+    uint8_t sk[SECRET_KEY_BYTES];
+    uint8_t ct[CIPHERTEXT_BYTES];
+    uint8_t ss[SHARED_SECRET_BYTES];
+    uint8_t m[VEC_K_SIZE_BYTES], mm[VEC_K_SIZE_BYTES];
+    randombytes(m, VEC_K_SIZE_BYTES);
+    uint8_t salt[SALT_SIZE_BYTES];
     randombytes(salt, SALT_SIZE_BYTES);
-	
-	// Initialize contexts
-	KeygenContext kctx = {0};
+
+    // Initialize contexts
+    KeygenContext kctx = {0};
     EncryptContext ectx = {0};
     DecryptContext dctx = {0};
-	
-	// Print profile
-	
-	FILE *fp = fopen("output_memo.txt", "w");
-	if (fp == NULL) {
-		perror("Failed to open file");
-		return 1;
-	}
 
-	
-	fprintf(fp, "Public key size: %lu\n", sizeof(pk));
-	fprintf(fp, "Secret key size: %lu\n", sizeof(sk));
-	fprintf(fp, "Cypertext size: %lu\n", sizeof(ct));
-	fprintf(fp, "Shared key size: %lu\n", sizeof(ss));
-	fprintf(fp, "Message size: %lu\n", sizeof(m));
-	fprintf(fp, "Salt size: %lu\n", sizeof(salt));
-	
-	fprintf(fp, "\nKeygenContext: %lu\n", sizeof(KeygenContext));
-	fprintf(fp, "sk_seed: %lu\n", sizeof(kctx.sk_seed));
-	fprintf(fp, "sigma: %lu\n", sizeof(kctx.sigma));
-	fprintf(fp, "pk_seed: %lu\n", sizeof(kctx.pk_seed));
-	fprintf(fp, "x: %lu\n", sizeof(kctx.x));
-	fprintf(fp, "y: %lu\n", sizeof(kctx.y));
-	fprintf(fp, "h: %lu\n", sizeof(kctx.h));
-	fprintf(fp, "s: %lu\n", sizeof(kctx.s));	
-	
-	fprintf(fp, "\nEncryptContext: %lu\n", sizeof(EncryptContext));
-	fprintf(fp, "theta: %lu\n", sizeof(ectx.theta));
-	fprintf(fp, "u: %lu\n", sizeof(ectx.u));
-	fprintf(fp, "v: %lu\n", sizeof(ectx.v));
-	fprintf(fp, "mc: %lu\n", sizeof(ectx.mc));
-	fprintf(fp, "tmp: %lu\n", sizeof(ectx.tmp));
-	fprintf(fp, "h: %lu\n", sizeof(ectx.h));
-	fprintf(fp, "s: %lu\n", sizeof(ectx.s));
-	fprintf(fp, "r1: %lu\n", sizeof(ectx.r1));
-	fprintf(fp, "r2: %lu\n", sizeof(ectx.r2));
-	fprintf(fp, "e: %lu\n", sizeof(ectx.e));
-	fprintf(fp, "tmp1: %lu\n", sizeof(ectx.tmp1));
-	fprintf(fp, "tmp2: %lu\n", sizeof(ectx.tmp2));	
-	
-	fprintf(fp, "\nDecryptContext: %lu\n", sizeof(DecryptContext));
-	fprintf(fp, "result: %lu\n", sizeof(dctx.result));
-	fprintf(fp, "u: %lu\n", sizeof(dctx.u));
-	fprintf(fp, "v: %lu\n", sizeof(dctx.v));
-	fprintf(fp, "sigma: %lu\n", sizeof(dctx.sigma));
-	fprintf(fp, "theta: %lu\n", sizeof(dctx.theta));
-	fprintf(fp, "u2: %lu\n", sizeof(dctx.u2));
-	fprintf(fp, "v2: %lu\n", sizeof(dctx.v2));
-	fprintf(fp, "mc: %lu\n", sizeof(dctx.mc));
-	fprintf(fp, "tmp: %lu\n", sizeof(dctx.tmp));
-	fprintf(fp, "x: %lu\n", sizeof(dctx.x));
-	fprintf(fp, "y: %lu\n", sizeof(dctx.y));
-	fprintf(fp, "pk: %lu\n", sizeof(dctx.pk));
-	fprintf(fp, "tmp1: %lu\n", sizeof(dctx.tmp1));
-	fprintf(fp, "tmp2: %lu\n", sizeof(dctx.tmp2));
-		
-	long unsigned int all_together = sizeof(pk) + sizeof(sk) + sizeof(ct) + sizeof(ss) + 2*sizeof(m) + sizeof(salt) + sizeof(KeygenContext) + sizeof(EncryptContext) + sizeof(DecryptContext);
-	fprintf(fp, "\nAll together: %lu\n", all_together);
-	
-	fclose(fp);
-	
-	
-    // Key Generation
+    // === Profile memory usage ===
+    FILE *fp = fopen("output_memo.txt", "w");
+    if (fp == NULL) {
+        perror("Failed to open file");
+        return 1;
+    }
+
+    fprintf(fp, "Public key size: %lu\n", sizeof(pk));
+    fprintf(fp, "Secret key size: %lu\n", sizeof(sk));
+    fprintf(fp, "Cypertext size: %lu\n", sizeof(ct));
+    fprintf(fp, "Shared key size: %lu\n", sizeof(ss));
+    fprintf(fp, "Message size: %lu\n", sizeof(m));
+    fprintf(fp, "Salt size: %lu\n", sizeof(salt));
+
+    fprintf(fp, "\nKeygenContext: %lu\n", sizeof(KeygenContext));
+    fprintf(fp, "sk_seed: %lu\n", sizeof(kctx.sk_seed));
+    fprintf(fp, "sigma: %lu\n", sizeof(kctx.sigma));
+    fprintf(fp, "pk_seed: %lu\n", sizeof(kctx.pk_seed));
+    fprintf(fp, "x: %lu\n", sizeof(kctx.x));
+    fprintf(fp, "y: %lu\n", sizeof(kctx.y));
+    fprintf(fp, "h: %lu\n", sizeof(kctx.h));
+    fprintf(fp, "s: %lu\n", sizeof(kctx.s));
+
+    fprintf(fp, "\nEncryptContext: %lu\n", sizeof(EncryptContext));
+    fprintf(fp, "theta: %lu\n", sizeof(ectx.theta));
+    fprintf(fp, "u: %lu\n", sizeof(ectx.u));
+    fprintf(fp, "v: %lu\n", sizeof(ectx.v));
+    fprintf(fp, "mc: %lu\n", sizeof(ectx.mc));
+    fprintf(fp, "tmp: %lu\n", sizeof(ectx.tmp));
+    fprintf(fp, "h: %lu\n", sizeof(ectx.h));
+    fprintf(fp, "s: %lu\n", sizeof(ectx.s));
+    fprintf(fp, "r1: %lu\n", sizeof(ectx.r1));
+    fprintf(fp, "r2: %lu\n", sizeof(ectx.r2));
+    fprintf(fp, "e: %lu\n", sizeof(ectx.e));
+    fprintf(fp, "tmp1: %lu\n", sizeof(ectx.tmp1));
+    fprintf(fp, "tmp2: %lu\n", sizeof(ectx.tmp2));
+
+    fprintf(fp, "\nDecryptContext: %lu\n", sizeof(DecryptContext));
+    fprintf(fp, "result: %lu\n", sizeof(dctx.result));
+    fprintf(fp, "u: %lu\n", sizeof(dctx.u));
+    fprintf(fp, "v: %lu\n", sizeof(dctx.v));
+    fprintf(fp, "sigma: %lu\n", sizeof(dctx.sigma));
+    fprintf(fp, "theta: %lu\n", sizeof(dctx.theta));
+    fprintf(fp, "u2: %lu\n", sizeof(dctx.u2));
+    fprintf(fp, "v2: %lu\n", sizeof(dctx.v2));
+    fprintf(fp, "mc: %lu\n", sizeof(dctx.mc));
+    fprintf(fp, "tmp: %lu\n", sizeof(dctx.tmp));
+    fprintf(fp, "x: %lu\n", sizeof(dctx.x));
+    fprintf(fp, "y: %lu\n", sizeof(dctx.y));
+    fprintf(fp, "pk: %lu\n", sizeof(dctx.pk));
+    fprintf(fp, "tmp1: %lu\n", sizeof(dctx.tmp1));
+    fprintf(fp, "tmp2: %lu\n", sizeof(dctx.tmp2));
+
+    long unsigned int all_together = sizeof(pk) + sizeof(sk) + sizeof(ct) + sizeof(ss) + 2 * sizeof(m) + sizeof(salt)
+        + sizeof(KeygenContext) + sizeof(EncryptContext) + sizeof(DecryptContext);
+    fprintf(fp, "\nAll together: %lu\n", all_together);
+    fclose(fp);
+
+    // === Key Generation ===
     keygen_generate_seeds(&kctx);
     keygen_generate_x_y(&kctx);
     keygen_generate_h(&kctx);
     keygen_compute_s(&kctx);
     keygen_pack_keys(&kctx, pk, sk);
 
-    // Encryption
+    // === Encryption ===
     enc_compute_theta(&ectx, pk);
     enc_generate_r1_r2_e(&ectx);
     enc_compute_u(&ectx, pk);
     enc_compute_v(&ectx, m);
-	enc_compute_shared_secret(&ectx, ss, m);
+    enc_compute_shared_secret(&ectx, ss, m);
     enc_pack_ciphertext(&ectx, ct, salt);
 
-    // Decryption
-	dec_unpack_ciphertext(&dctx, salt, ct);
-	dec_unpack_secret_key(&dctx, sk);
-	dec_compute_tmp2_for_decoding(&dctx);
-	dec_decode_message(&dctx, mm);
-	dec_rederive_theta(&dctx);
-	dec_reencrypt(&dctx, mm);
-	dec_constant_time_check(&dctx);
-	dec_select_message(&dctx, mm);
-	dec_finalize_shared_secret(&dctx , ss);
+    // === Decryption ===
+    dec_unpack_ciphertext(&dctx, salt, ct);
+    dec_unpack_secret_key(&dctx, sk);
+    dec_compute_tmp2_for_decoding(&dctx);
+    dec_decode_message(&dctx, mm);
+    dec_rederive_theta(&dctx);
+    dec_reencrypt(&dctx, mm);
+    dec_constant_time_check(&dctx);
+    dec_select_message(&dctx, mm);
+    dec_finalize_shared_secret(&dctx, ss);
 
-	if((dctx.result & 1) - 1 == 0)
-		printf("\nTest passed.\n");
-	else
-		printf("\nTest failed.\n");
+    if ((dctx.result & 1) - 1 == 0)
+        printf("\nTest passed.\n");
+    else
+        printf("\nTest failed.\n");
 
-	return 0;
+    return 0;
 }
+
 

@@ -2,7 +2,7 @@
 
 LIB = libhqc-128_clean.a
 HEADERS = api.h code.h domains.h fips202.h fft.h gf.h gf2x.h hqc.h parameters.h parsing.h randombytes.h reed_muller.h reed_solomon.h sha2.h shake_ds.h shake_prng.h vector.h
-OBJECTS = code.o fips202.o fft.o gf.o gf2x.o hqc.o kem.o parsing.o randombytes.o reed_muller.o reed_solomon.o sha2.o shake_ds.o shake_prng.o vector.o
+OBJECTS = code.o fips202.o fft.o gf.o gf2x.o hqc.o kem.o parsing.o randombytes.o reed_muller.o reed_solomon.o sha2.o shake_ds.o shake_prng.o vector.o kat_helpers.o
 
 CFLAGS = -Wall -Wextra -Wpedantic -Wshadow -Wvla -Wredundant-decls -Wmissing-prototypes -std=c99 -I../../../common $(EXTRAFLAGS)
 DEBUG_FLAGS = -ggdb -O2 -fstack-usage -fno-inline -fno-omit-frame-pointer
