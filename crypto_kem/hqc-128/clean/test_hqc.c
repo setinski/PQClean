@@ -1,3 +1,4 @@
+#include "kat_helpers.h" // common file for KAT mode, includes randombytes
 #include "code.h"
 #include "gf2x.h"
 #include "hqc.h"
@@ -15,7 +16,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include <assert.h>
-#include "kat_helpers.h" // common file for KAT mode, includes randombytes
 
 #define NOINLINE __attribute__((noinline))
 
@@ -210,7 +210,14 @@ void print_hex_diff(const char *label, const uint8_t *a, const uint8_t *b, size_
     printf("\n");
 }
 
-int verify_kats(const char *kat_rsp_filename, int *passed, int *total) {
+// Helper: print hex to a file
+void fprint_hex(FILE *fp, const uint8_t *buf, size_t len) {
+    for (size_t i = 0; i < len; i++)
+        fprintf(fp, "%02x", buf[i]);
+    fprintf(fp, "\n");
+}
+
+int verify_kats(const char *kat_rsp_filename, int *passed, int *total, FILE *log) {
     FILE *fp_rsp = fopen(kat_rsp_filename, "r");
     if (!fp_rsp) {
         perror("KAT .rsp file");
@@ -244,6 +251,9 @@ int verify_kats(const char *kat_rsp_filename, int *passed, int *total) {
         keygen_generate_h(&kctx);
         keygen_compute_s(&kctx);
         keygen_pack_keys(&kctx, pk, sk);
+        fprintf(log, "[keygen] sk_seed: "); fprint_hex(log, kctx.sk_seed, SEED_BYTES);
+        fprintf(log, "[keygen] pk_seed: "); fprint_hex(log, kctx.pk_seed, SEED_BYTES);
+        fprintf(log, "[keygen] sigma:   "); fprint_hex(log, kctx.sigma, VEC_K_SIZE_BYTES);
 
         EncryptContext ectx = {0};
         uint8_t m[VEC_K_SIZE_BYTES];
@@ -271,31 +281,33 @@ int verify_kats(const char *kat_rsp_filename, int *passed, int *total) {
         dec_finalize_shared_secret(&dctx, ss_dec);
 
         int fail = 0;
-        printf("KAT test %d:\n", testno);
+        fprintf(log, "KAT test %d:\n", testno);
 
         if (memcmp(pk, pk_kat, PUBLIC_KEY_BYTES) != 0) {
-            printf("  Public key mismatch\n");
+            fprintf(log, "  Public key mismatch\n");
+            fprintf(log, "    Expected: "); fprint_hex(log, pk_kat, PUBLIC_KEY_BYTES);
+            fprintf(log, "    Got:      "); fprint_hex(log, pk, PUBLIC_KEY_BYTES);
             fail = 1;
         }
         if (memcmp(sk, sk_kat, SECRET_KEY_BYTES) != 0) {
-            printf("  Secret key mismatch\n");
+            fprintf(log, "  Secret key mismatch\n");
             fail = 1;
         }
         if (memcmp(ct, ct_kat, CIPHERTEXT_BYTES) != 0) {
-            printf("  Ciphertext mismatch\n");
+            fprintf(log, "  Ciphertext mismatch\n");
             fail = 1;
         }
         if (memcmp(ss, ss_kat, SHARED_SECRET_BYTES) != 0) {
-            printf("  Shared secret mismatch (encapsulation)\n");
+            fprintf(log, "  Shared secret mismatch (encapsulation)\n");
             fail = 1;
         }
         if (memcmp(ss_dec, ss_kat, SHARED_SECRET_BYTES) != 0) {
-            printf("  Shared secret mismatch (decapsulation)\n");
+            fprintf(log, "  Shared secret mismatch (decapsulation)\n");
             fail = 1;
         }
 
         if (!fail) {
-            printf("  PASS\n");
+            fprintf(log, "  PASS\n");
             (*passed)++;
         } else {
             failures++;
@@ -318,12 +330,20 @@ int verify_kats(const char *kat_rsp_filename, int *passed, int *total) {
 
 
 
+
 int main(int argc, char **argv) {
     // === KAT verification mode ===
     if (argc > 1 && strcmp(argv[1], "kat") == 0) {
+        FILE *log = fopen("kat_debug.log", "w");
+        if (!log) {
+            perror("Failed to open kat_debug.log");
+            return 1;
+        }
+
         int passed = 0, total = 0;
-        int result = verify_kats("PQCkemKAT_2305.rsp", &passed, &total);
-        printf("\nKAT verification: %d/%d tests passed.\n", passed, total);
+        int result = verify_kats("PQCkemKAT_2305.rsp", &passed, &total, log);
+        fclose(log);
+
         return result;
     }
 
