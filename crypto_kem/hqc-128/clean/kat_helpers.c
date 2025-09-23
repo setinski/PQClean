@@ -5,6 +5,7 @@
 #include <assert.h>
 #include "kat_helpers.h"
 #include "fips202.h"  // for SHAKE functions
+FILE *debug_log = NULL;
 
 shake256incctx shake_prng_state;
 
@@ -26,11 +27,25 @@ void hqc_kat_release(void) {
 
 int randombytes(uint8_t *buf, size_t n) {
     shake256_inc_squeeze(buf, n, &shake_prng_state);
-    printf("[randombytes] First 8 bytes: ");
-    for (int i = 0; i < 8 && i < n; i++) printf("%02x", buf[i]);
-    printf("\n");
+    if (debug_log) {
+        fprintf(debug_log, "[randombytes] %zu bytes: ", n);
+        for (size_t i = 0; i < n; i++) fprintf(debug_log, "%02x", buf[i]);
+        fprintf(debug_log, "\n");
+    }
     return 0;
 }
+
+int randombytes_labeled(uint8_t *buf, size_t n, const char *label) {
+    shake256_inc_squeeze(buf, n, &shake_prng_state);
+    if (debug_log) {
+        fprintf(debug_log, "\n=== %s ===\n", label);
+        fprintf(debug_log, "[randombytes] %zu bytes: ", n);
+        for (size_t i = 0; i < n; i++) fprintf(debug_log, "%02x", buf[i]);
+        fprintf(debug_log, "\n");
+    }
+    return 0;
+}
+
 
 
 void fprintBstr(FILE *fp, const char *S, const uint8_t *A, size_t L) {

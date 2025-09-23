@@ -62,4 +62,4 @@ stack-test_hqc:
 
 # Clean build files and reports
 clean:
-	$(RM) $(OBJECTS) $(LIB) test_hqc.o test_hqc_kats.o test_hqc test_hqc_kats *.su massif.out.* massif-report.txt stack-usage-report.txt PQCkemKAT_*.req PQCkemKAT_*.rsp
+	$(RM) $(OBJECTS) $(LIB) test_hqc.o test_hqc_kats.o test_hqc test_hqc_kats *.su massif.out.* massif-report.txt stack-usage-report.txt PQCkemKAT_*.req PQCkemKAT_*.rsp kat_debug.log debug.log
