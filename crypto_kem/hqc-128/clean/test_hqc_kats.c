@@ -10,7 +10,6 @@
 #include "hqc.h"
 #include "parameters.h"
 #include "parsing.h"
-#include "randombytes.h"
 #include "reed_muller.h"
 #include "reed_solomon.h"
 #include "sha2.h"

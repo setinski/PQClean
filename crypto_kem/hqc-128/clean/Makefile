@@ -17,8 +17,11 @@ $(LIB): $(OBJECTS)
 	$(AR) rcs $@ $(OBJECTS)
 
 # ----------------------------
-# test_hqc: basic functional test
+# test_hqc: functional test & KAT verification
 # ----------------------------
+# Usage:
+#   ./test_hqc           # Standard functional test (random keys/messages)
+#   ./test_hqc kat       # KAT verification mode (checks against .rsp file)
 test_hqc.o: test_hqc.c $(HEADERS)
 	$(CC) $(CFLAGS) $(DEBUG_FLAGS) -c -o $@ $<
 
@@ -26,8 +29,10 @@ test_hqc: test_hqc.o $(LIB)
 	$(CC) $(CFLAGS) $(DEBUG_FLAGS) -o $@ test_hqc.o $(LDFLAGS)
 
 # ----------------------------
-# test_hqc_kats: Known Answer Test (KAT) harness
+# test_hqc_kats: KAT harness for reference impl
 # ----------------------------
+# Usage:
+#   ./test_hqc_kats      # generates .rsp 
 test_hqc_kats.o: test_hqc_kats.c $(HEADERS)
 	$(CC) $(CFLAGS) $(DEBUG_FLAGS) -c -o $@ $<
 
@@ -39,6 +44,8 @@ test_hqc_kats: test_hqc_kats.o $(LIB)
 # ----------------------------
 run: test_hqc
 	./test_hqc
+run_kat: test_hqc
+	./test_hqc kat
 
 run_kats: test_hqc_kats
 	./test_hqc_kats
